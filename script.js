@@ -632,4 +632,354 @@ function openClientModal(clientId = null) {
     }
     
     const modalHtml = `
-        <div class
+        <div class="modal-overlay" id="clientModal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>${clientId ? 'Editar Cliente' : 'Novo Cliente'}</h2>
+                    <button class="close-modal" onclick="closeModal()">&times;</button>
+                </div>
+                
+                <div class="modal-body">
+                    <form id="clientForm">
+                        <input type="hidden" id="modalClientId" value="${clientId || ''}">
+                        
+                        <div class="form-group">
+                            <label for="modalClientName">Nome/Razão Social *</label>
+                            <input type="text" id="modalClientName" class="form-control" value="${client?.name || ''}" required>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="modalClientDocument">CPF/CNPJ *</label>
+                            <input type="text" id="modalClientDocument" class="form-control" value="${client?.document || ''}" required>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="modalClientEmail">E-mail</label>
+                            <input type="email" id="modalClientEmail" class="form-control" value="${client?.email || ''}">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="modalClientPhone">Telefone</label>
+                            <input type="text" id="modalClientPhone" class="form-control" value="${client?.phone || ''}">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="modalClientService">Serviço Contratado</label>
+                            <select id="modalClientService" class="form-control">
+                                <option value="">Selecione...</option>
+                                <option value="Registro de Marca" ${client?.service === 'Registro de Marca' ? 'selected' : ''}>Registro de Marca</option>
+                                <option value="Registro de Patente" ${client?.service === 'Registro de Patente' ? 'selected' : ''}>Registro de Patente</option>
+                                <option value="Registro de Software" ${client?.service === 'Registro de Software' ? 'selected' : ''}>Registro de Software</option>
+                                <option value="Outro" ${client?.service === 'Outro' ? 'selected' : ''}>Outro</option>
+                            </select>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>Status *</label>
+                            <div class="d-flex gap-20">
+                                <label>
+                                    <input type="radio" name="modalClientStatus" value="active" ${(!client || client.status === 'active') ? 'checked' : ''}>
+                                    Ativo
+                                </label>
+                                <label>
+                                    <input type="radio" name="modalClientStatus" value="cancelled" ${client?.status === 'cancelled' ? 'checked' : ''}>
+                                    Cancelado
+                                </label>
+                                <label>
+                                    <input type="radio" name="modalClientStatus" value="paid" ${client?.status === 'paid' ? 'checked' : ''}>
+                                    Quitado
+                                </label>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+                
+                <div class="modal-footer">
+                    <button class="btn btn-outline" onclick="closeModal()">Cancelar</button>
+                    <button class="btn btn-primary" onclick="saveClient()">Salvar Cliente</button>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // Adicionar modal ao body
+    const modalContainer = document.createElement('div');
+    modalContainer.innerHTML = modalHtml;
+    document.body.appendChild(modalContainer);
+    
+    // Mostrar modal
+    setTimeout(() => {
+        document.getElementById('clientModal').style.display = 'flex';
+    }, 10);
+}
+
+// Fechar modal
+function closeModal() {
+    const modal = document.getElementById('clientModal');
+    if (modal) {
+        modal.style.display = 'none';
+        setTimeout(() => {
+            modal.remove();
+        }, 300);
+    }
+}
+
+// Salvar cliente
+function saveClient() {
+    const id = document.getElementById('modalClientId').value;
+    const name = document.getElementById('modalClientName').value;
+    const document = document.getElementById('modalClientDocument').value;
+    const email = document.getElementById('modalClientEmail').value;
+    const phone = document.getElementById('modalClientPhone').value;
+    const service = document.getElementById('modalClientService').value;
+    const status = document.querySelector('input[name="modalClientStatus"]:checked').value;
+    
+    if (!name || !document) {
+        alert('Nome e CPF/CNPJ são obrigatórios!');
+        return;
+    }
+    
+    const clientData = {
+        name,
+        document,
+        email,
+        phone,
+        service,
+        status,
+        registrationDate: new Date().toISOString()
+    };
+    
+    if (id) {
+        // Atualizar cliente existente
+        const index = clients.findIndex(c => c.id === id);
+        if (index !== -1) {
+            clients[index] = { ...clients[index], ...clientData };
+        }
+    } else {
+        // Adicionar novo cliente
+        clientData.id = Date.now().toString();
+        clients.push(clientData);
+    }
+    
+    saveClients();
+    closeModal();
+    
+    // Atualizar view atual
+    if (currentView === 'dashboard') {
+        updateDashboardStats();
+    } else if (currentView === 'clients') {
+        renderClientsTable();
+    }
+    
+    alert(`Cliente ${id ? 'atualizado' : 'adicionado'} com sucesso!`);
+}
+
+// Editar cliente
+function editClient(id) {
+    openClientModal(id);
+}
+
+// Excluir cliente
+function deleteClient(id) {
+    if (confirm('Tem certeza que deseja excluir este cliente?')) {
+        clients = clients.filter(c => c.id !== id);
+        saveClients();
+        renderClientsTable();
+        alert('Cliente excluído com sucesso!');
+    }
+}
+
+// Buscar clientes
+function searchClients(query) {
+    const filteredClients = clients.filter(client => 
+        client.name.toLowerCase().includes(query.toLowerCase()) ||
+        client.document.includes(query) ||
+        (client.email && client.email.toLowerCase().includes(query.toLowerCase())) ||
+        (client.service && client.service.toLowerCase().includes(query.toLowerCase()))
+    );
+    
+    const tableBody = document.getElementById('allClientsTable');
+    if (!tableBody) return;
+    
+    if (filteredClients.length === 0) {
+        tableBody.innerHTML = `
+            <tr>
+                <td colspan="6" class="text-center">
+                    Nenhum cliente encontrado para "${query}"
+                </td>
+            </tr>
+        `;
+        return;
+    }
+    
+    tableBody.innerHTML = filteredClients.map(client => `
+        <tr>
+            <td>${client.name}</td>
+            <td>${client.document}</td>
+            <td>
+                ${client.email ? `${client.email}<br>` : ''}
+                ${client.phone || ''}
+            </td>
+            <td>${client.service || '---'}</td>
+            <td><span class="status-badge status-${client.status}">
+                ${client.status === 'active' ? 'Ativo' : 
+                  client.status === 'cancelled' ? 'Cancelado' : 'Quitado'}
+            </span></td>
+            <td>
+                <button class="btn btn-outline" onclick="editClient('${client.id}')" style="padding: 5px 10px; font-size: 12px; margin-right: 5px;">
+                    <i class="fas fa-edit"></i>
+                </button>
+                <button class="btn btn-outline" onclick="deleteClient('${client.id}')" style="padding: 5px 10px; font-size: 12px; color: #e53e3e;">
+                    <i class="fas fa-trash"></i>
+                </button>
+            </td>
+        </tr>
+    `).join('');
+}
+
+// Salvar clientes no localStorage
+function saveClients() {
+    localStorage.setItem('fenixClients', JSON.stringify(clients));
+}
+
+// Upload de arquivo
+function handleFileUpload(file) {
+    if (!file) return;
+    
+    const fileName = file.name.toLowerCase();
+    
+    if (!fileName.endsWith('.csv') && !fileName.endsWith('.xlsx') && !fileName.endsWith('.xls')) {
+        alert('Por favor, selecione um arquivo CSV ou Excel');
+        return;
+    }
+    
+    alert(`Arquivo "${file.name}" selecionado.\n\nEm um sistema completo, aqui seria processada a importação.\n\nPor enquanto, use a função "Adicionar Cliente" manualmente.`);
+    
+    // Em um sistema real, aqui processaríamos o arquivo
+    // Para demonstração, vamos apenas simular
+    simulateImport();
+}
+
+// Simular importação
+function simulateImport() {
+    const simulatedClients = [
+        {
+            id: Date.now().toString(),
+            name: 'Cliente Importado 1',
+            document: '111.222.333-44',
+            email: 'cliente1@email.com',
+            phone: '(11) 1111-1111',
+            service: 'Registro de Marca',
+            status: 'active',
+            registrationDate: new Date().toISOString()
+        },
+        {
+            id: (Date.now() + 1).toString(),
+            name: 'Cliente Importado 2',
+            document: '22.333.444/0001-55',
+            email: 'cliente2@empresa.com',
+            phone: '(22) 2222-2222',
+            service: 'Registro de Patente',
+            status: 'active',
+            registrationDate: new Date().toISOString()
+        }
+    ];
+    
+    clients.push(...simulatedClients);
+    saveClients();
+    
+    if (currentView === 'dashboard') {
+        updateDashboardStats();
+    } else if (currentView === 'clients') {
+        renderClientsTable();
+    }
+    
+    alert('2 clientes importados com sucesso!');
+}
+
+// Salvar informações da empresa
+function saveCompanyInfo() {
+    const companyName = document.getElementById('companyName').value;
+    const companyEmail = document.getElementById('companyEmail').value;
+    
+    if (!companyName) {
+        alert('O nome da empresa é obrigatório');
+        return;
+    }
+    
+    if (currentUser) {
+        currentUser.company = companyName;
+        currentUser.email = companyEmail;
+        localStorage.setItem('fenixUser', JSON.stringify(currentUser));
+    }
+    
+    alert('Informações salvas com sucesso!');
+}
+
+// Exportar dados
+function exportData() {
+    const data = {
+        clients: clients,
+        user: currentUser,
+        exportDate: new Date().toISOString(),
+        system: APP_CONFIG.name,
+        version: APP_CONFIG.version
+    };
+    
+    const dataStr = JSON.stringify(data, null, 2);
+    const dataUri = 'data:application/json;charset=utf-8,' + encodeURIComponent(dataStr);
+    
+    const exportFileName = `fenix-backup-${new Date().toISOString().slice(0, 10)}.json`;
+    
+    const linkElement = document.createElement('a');
+    linkElement.setAttribute('href', dataUri);
+    linkElement.setAttribute('download', exportFileName);
+    linkElement.click();
+    
+    alert(`Backup exportado: ${exportFileName}`);
+}
+
+// Importar dados
+function importData() {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.json';
+    
+    input.onchange = function(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+        
+        const reader = new FileReader();
+        reader.onload = function(event) {
+            try {
+                const data = JSON.parse(event.target.result);
+                
+                if (confirm(`Importar ${data.clients?.length || 0} clientes?`)) {
+                    if (data.clients) {
+                        clients = data.clients;
+                        saveClients();
+                    }
+                    
+                    if (data.user) {
+                        currentUser = data.user;
+                        localStorage.setItem('fenixUser', JSON.stringify(currentUser));
+                    }
+                    
+                    renderApp();
+                    alert('Dados importados com sucesso!');
+                }
+            } catch (error) {
+                alert('Erro ao importar arquivo. Verifique se é um backup válido do sistema Fênix.');
+            }
+        };
+        
+        reader.readAsText(file);
+    };
+    
+    input.click();
+}
+
+// Mostrar ajuda
+function showHelp() {
+    alert(`${APP_CONFIG.name} - Ajuda\n\n1. Login: Use qualquer e-mail e senha\n2. Adicionar clientes: Clique em "Novo Cliente"\n3. Importar: Use o botão "Importar" para adicionar vários clientes de uma vez\n4. Backup: Sempre exporte seus dados para não perdê-los\n5. GitHub: O sistema funciona 100% online no GitHub Pages`);
+}
